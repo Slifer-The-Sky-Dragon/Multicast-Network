@@ -1,0 +1,29 @@
+MySystem 1
+MySystem 2
+MySystem 3
+MySystem 4
+MySystem 5
+MySystem 6
+MySwitch 10 1
+MySwitch 10 2
+MySwitch 10 3
+MySwitch 10 4
+MySwitch 10 5
+MySwitch 10 6
+MySwitch 10 7
+MySwitch 10 8
+ConnectSwitchSwitch 1 1 2 1
+ConnectSwitchSwitch 1 2 3 1
+ConnectSwitchSwitch 1 3 8 1
+ConnectSwitchSwitch 4 1 8 3
+ConnectSwitchSwitch 5 1 7 1
+ConnectSwitchSwitch 6 2 8 4
+ConnectSwitchSwitch 7 3 8 5
+ConnectSwitchSystem 1 2 3
+ConnectSwitchSystem 2 2 4
+ConnectSwitchSystem 6 1 4
+ConnectSwitchSystem 4 3 3
+ConnectSwitchSystem 3 7 4
+ConnectSwitchSystem 5 7 5
+RecieveFile 1 5 fileshare.txt
+SendFile 4 3 fileshare2.txt
