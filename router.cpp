@@ -35,23 +35,23 @@ using namespace std;
 
 const int DELAY = 10000;
 const int MESSAGE_SIZE = 1500;
-const int MAX_SWITCH = 100;
+const int MAX_ROUTER = 100;
 const int MAX_PORT_CNT = 100;
 
-typedef enum {EXEC_NAME , PORT_CNT, SWITCH_ID} Argv_Indexes;
+typedef enum {EXEC_NAME , PORT_CNT, ROUTER_ID} Argv_Indexes;
 
 typedef map < int , int > Sys2Port;
 typedef map < int , int > Port2Fd;
 typedef vector < int > FdVec;
 
-int switch_id;
-vector < int > switch_children;
+int router_id;
+vector < int > router_children;
 
 struct system {
     int id, read_fd, write_fd;
 };
 
-void ethernet_frame_decoder(string message, int received_fd, int main_switch_fd, Port2Fd& port_to_write_fd ,
+void ethernet_frame_decoder(string message, int received_fd, int main_router_fd, Port2Fd& port_to_write_fd ,
                             Sys2Port& system_to_port , FdVec& all_read_fd , FdVec& all_write_fd , FdVec& all_system_fd,
                             map < int , int >& read_fd_to_write_fd,
                             int& root_id , int& root_fd , int& root_dst);
@@ -72,8 +72,8 @@ string find_message_data(string message){
     return result;
 }
 
-string switch_info() {
-    return "SWITCH(ID = " + to_string(switch_id) + ")";
+string router_info() {
+    return "ROUTER(ID = " + to_string(router_id) + ")";
 }
 
 string extend_string_length(string a , size_t final_length){
@@ -113,7 +113,7 @@ void broadcast_root_message(string root_message , FdVec& all_read_fd ,
 
 
 void main_config_message_handler(FdVec& all_read_fd , FdVec& all_write_fd , map < int , int >& read_fd_to_write_fd){
-    string root_data = to_string(switch_id) + " " + to_string(switch_id) + " 0 ";
+    string root_data = to_string(router_id) + " " + to_string(router_id) + " 0 ";
     string root_message = convert_to_ehternet_frame(0 , 0 , CONFIG_TYPE , root_data);
     broadcast_root_message(root_message , all_read_fd , all_write_fd , read_fd_to_write_fd);
 }
@@ -126,7 +126,7 @@ void main_setpar_message_handler(FdVec& all_read_fd , FdVec& all_write_fd , FdVe
 
     if(root_fd != -1){
         all_write_fd.push_back(read_fd_to_write_fd[root_fd]);
-        string root_data = to_string(switch_id) + " ";
+        string root_data = to_string(router_id) + " ";
         string root_message = convert_to_ehternet_frame(0 , 0 , CHILD_TYPE , root_data);
         write(read_fd_to_write_fd[root_fd] , root_message.c_str() , root_message.size());
         usleep(DELAY);
@@ -135,12 +135,12 @@ void main_setpar_message_handler(FdVec& all_read_fd , FdVec& all_write_fd , FdVe
 
 void main_print_message_handler(){
     string res = EMPTY;
-    res += switch_info();
-    res += ": Children's Switch ID = ";
-    for(int i = 0 ; i < switch_children.size() ; i++){
-        res += to_string(switch_children[i]) + " ";
+    res += router_info();
+    res += ": Children's Router ID = ";
+    for(int i = 0 ; i < router_children.size() ; i++){
+        res += to_string(router_children[i]) + " ";
     }
-    if(switch_children.size() == 0)
+    if(router_children.size() == 0)
         res += "No Children";
     cout << res << endl;
 }
@@ -159,36 +159,36 @@ void main_command_handler(string message_data , Port2Fd& port_to_write_fd ,
         string pipe_name1 , pipe_name2;
         ss >> port_number >> pipe_name1 >> pipe_name2;
 
-        int switch_read_fd = open(pipe_name2.c_str(), O_RDWR);
-        int switch_write_fd = open(pipe_name1.c_str(), O_RDWR);
+        int router_read_fd = open(pipe_name2.c_str(), O_RDWR);
+        int router_write_fd = open(pipe_name1.c_str(), O_RDWR);
 
-        if(switch_write_fd < 0 || switch_read_fd < 0){
+        if(router_write_fd < 0 || router_read_fd < 0){
             perror("open");
             abort();
         }
 
-        port_to_write_fd[port_number] = switch_write_fd;
-        all_write_fd.push_back(switch_write_fd);
-        all_read_fd.push_back(switch_read_fd);
+        port_to_write_fd[port_number] = router_write_fd;
+        all_write_fd.push_back(router_write_fd);
+        all_read_fd.push_back(router_read_fd);
         if(command == "CSS")
-            all_system_fd.push_back(switch_write_fd);
+            all_system_fd.push_back(router_write_fd);
 
-        read_fd_to_write_fd[switch_read_fd] = switch_write_fd;
+        read_fd_to_write_fd[router_read_fd] = router_write_fd;
 
-        string res = "SWITCH";
-        res += "(ID = " + to_string(switch_id) + ")";
+        string res = "ROUTER";
+        res += "(ID = " + to_string(router_id) + ")";
         res += ": Added connection ";
         res += "(port = " + to_string(port_number);
-        res += ", read_fd = " + to_string(switch_read_fd);
-        res += ", write_fd = " + to_string(switch_write_fd);
+        res += ", read_fd = " + to_string(router_read_fd);
+        res += ", write_fd = " + to_string(router_write_fd);
         res += ")";
 
         cout << res << endl;
     }
 
     else if(command == "CONFIG"){
-        string res = "SWITCH";
-        res += "(ID = " + to_string(switch_id) + ")";
+        string res = "ROUTER";
+        res += "(ID = " + to_string(router_id) + ")";
         res += ": CONFIG MESSAGE received!";
         cout << res << endl;
 
@@ -196,8 +196,8 @@ void main_command_handler(string message_data , Port2Fd& port_to_write_fd ,
     }
 
     else if(command == "SETPAR"){
-        string res = "SWITCH";
-        res += "(ID = " + to_string(switch_id) + ")";
+        string res = "ROUTER";
+        res += "(ID = " + to_string(router_id) + ")";
         res += ": SETPAR MESSAGE received!";
         cout << res << endl; 
 
@@ -209,7 +209,7 @@ void main_command_handler(string message_data , Port2Fd& port_to_write_fd ,
     }
 }
 
-void message_command_handler(string raw_message , int received_fd, int main_switch_fd, int da, int sa , string message_data , 
+void message_command_handler(string raw_message , int received_fd, int main_router_fd, int da, int sa , string message_data , 
                             Port2Fd& port_to_write_fd , Sys2Port& system_to_write_port , FdVec& all_read_fd,
                             FdVec& all_write_fd , map < int , int >& read_fd_to_write_fd){
 
@@ -219,7 +219,7 @@ void message_command_handler(string raw_message , int received_fd, int main_swit
         int dest_write_fd = system_to_write_port[da];
         write(dest_write_fd , raw_message.c_str() , raw_message.size());
         string res = EMPTY;
-        res += switch_info();
+        res += router_info();
         res += ": Sent packet ";
         res += "(source = " + to_string(sa);
         res += ", dest = " + to_string(da);
@@ -232,7 +232,7 @@ void message_command_handler(string raw_message , int received_fd, int main_swit
                 continue;
             write(all_write_fd[i] , raw_message.c_str() , raw_message.size());
             string res = EMPTY;
-            res += switch_info();
+            res += router_info();
             res += ": Broadcasted packet ";
             res += "(source = " + to_string(sa);
             res += ", dest = " + to_string(da);
@@ -252,7 +252,7 @@ bool is_better_root(int root_id , int root_dst , int recv_root_id , int recv_dst
         return true;
 }
 
-void check_for_other_messages(stringstream& ss , int received_fd , int main_switch_fd , Port2Fd& port_to_write_fd,
+void check_for_other_messages(stringstream& ss , int received_fd , int main_router_fd , Port2Fd& port_to_write_fd,
                                 Sys2Port& system_to_write_port, FdVec& all_read_fd, FdVec& all_write_fd,
                                 FdVec& all_system_fd , map < int , int >& read_fd_to_write_fd,
                                 int& root_id , int& root_fd , int& root_dst){
@@ -261,13 +261,13 @@ void check_for_other_messages(stringstream& ss , int received_fd , int main_swit
         string a , b;
         ss >> a >> b;
         string message = command_part + " " + a + " " + b + "\n";
-        ethernet_frame_decoder(message, received_fd , main_switch_fd , port_to_write_fd , 
+        ethernet_frame_decoder(message, received_fd , main_router_fd , port_to_write_fd , 
                                                 system_to_write_port , all_read_fd , all_write_fd , all_system_fd, 
                                                 read_fd_to_write_fd , root_id , root_fd , root_dst);
     }
 }
 
-void config_command_handler(string raw_message , int received_fd, int main_switch_fd, int da, int sa , string message_data , 
+void config_command_handler(string raw_message , int received_fd, int main_router_fd, int da, int sa , string message_data , 
                             Port2Fd& port_to_write_fd , Sys2Port& system_to_write_port , FdVec& all_read_fd,
                             FdVec& all_write_fd , FdVec& all_system_fd , map < int , int >& read_fd_to_write_fd,
                             int& root_id , int& root_fd , int& root_dst){
@@ -277,7 +277,7 @@ void config_command_handler(string raw_message , int received_fd, int main_switc
     ss >> recv_sender >> recv_root_id >> recv_dst;
 
     string res = EMPTY;
-    res += switch_info();
+    res += router_info();
     res += ": ROOT MESSAGE = ";
     res += to_string(recv_sender) + " " + to_string(recv_root_id) + " " + to_string(recv_dst);
     res += ", fd = " + to_string(received_fd);
@@ -289,16 +289,16 @@ void config_command_handler(string raw_message , int received_fd, int main_switc
         root_dst = recv_dst;
         root_fd = received_fd;
 
-        string root_data = to_string(switch_id) + " " + to_string(root_id) + " " + to_string(recv_dst + 1) + " ";
+        string root_data = to_string(router_id) + " " + to_string(root_id) + " " + to_string(recv_dst + 1) + " ";
         string root_message = convert_to_ehternet_frame(0 , 0 , CONFIG_TYPE , root_data);
         broadcast_root_message(root_message , all_read_fd , all_write_fd , read_fd_to_write_fd);
     }
 
-    check_for_other_messages(ss , received_fd , main_switch_fd , port_to_write_fd, system_to_write_port, all_read_fd,
+    check_for_other_messages(ss , received_fd , main_router_fd , port_to_write_fd, system_to_write_port, all_read_fd,
                                 all_write_fd, all_system_fd , read_fd_to_write_fd, root_id , root_fd , root_dst);
 }
 
-void child_command_handler(string raw_message , int received_fd, int main_switch_fd, int da, int sa , string message_data , 
+void child_command_handler(string raw_message , int received_fd, int main_router_fd, int da, int sa , string message_data , 
                             Port2Fd& port_to_write_fd , Sys2Port& system_to_write_port , FdVec& all_read_fd,
                             FdVec& all_write_fd , map < int , int >& read_fd_to_write_fd,
                             int& root_id , int& root_fd , int& root_dst){
@@ -308,18 +308,18 @@ void child_command_handler(string raw_message , int received_fd, int main_switch
     ss >> children_id;
 
     string res = EMPTY;
-    res += switch_info();
+    res += router_info();
     res += ": CHILD MESSAGE received ";
     res += " child id = " + to_string(children_id);
     res += ", fd = " + to_string(received_fd);
     res += ")";
     cout << res << '\n';
 
-    switch_children.push_back(children_id);
+    router_children.push_back(children_id);
     all_write_fd.push_back(read_fd_to_write_fd[received_fd]);
 }
 
-void switch_command_handler(int received_fd, int main_switch_fd, string raw_message, int da, int sa , string message_type ,
+void router_command_handler(int received_fd, int main_router_fd, string raw_message, int da, int sa , string message_type ,
                             string message_data , Port2Fd& port_to_write_fd ,
                             Sys2Port& system_to_port , FdVec& all_read_fd , FdVec& all_write_fd, FdVec& all_system_fd, 
                             map < int , int >& read_fd_to_write_fd , 
@@ -329,19 +329,19 @@ void switch_command_handler(int received_fd, int main_switch_fd, string raw_mess
                                 read_fd_to_write_fd , root_id , root_fd , root_dst);
     
     else if(message_type == CONFIG_TYPE)
-        config_command_handler(raw_message , received_fd , main_switch_fd , da , sa , message_data , port_to_write_fd ,
+        config_command_handler(raw_message , received_fd , main_router_fd , da , sa , message_data , port_to_write_fd ,
                                  system_to_port , all_read_fd , all_write_fd , all_system_fd, read_fd_to_write_fd,
                                  root_id , root_fd , root_dst);
     else if(message_type == CHILD_TYPE)
-        child_command_handler(raw_message , received_fd , main_switch_fd , da , sa , message_data , port_to_write_fd ,
+        child_command_handler(raw_message , received_fd , main_router_fd , da , sa , message_data , port_to_write_fd ,
                                  system_to_port , all_read_fd , all_write_fd , read_fd_to_write_fd,
                                  root_id , root_fd , root_dst);
     else
-        message_command_handler(raw_message , received_fd , main_switch_fd , da , sa , message_data , port_to_write_fd ,
+        message_command_handler(raw_message , received_fd , main_router_fd , da , sa , message_data , port_to_write_fd ,
                                  system_to_port , all_read_fd , all_write_fd , read_fd_to_write_fd);
 }
 
-void ethernet_frame_decoder(string message, int received_fd, int main_switch_fd, Port2Fd& port_to_write_fd ,
+void ethernet_frame_decoder(string message, int received_fd, int main_router_fd, Port2Fd& port_to_write_fd ,
                             Sys2Port& system_to_port , FdVec& all_read_fd , FdVec& all_write_fd , FdVec& all_system_fd,
                             map < int , int >& read_fd_to_write_fd,
                             int& root_id , int& root_fd , int& root_dst){
@@ -353,16 +353,16 @@ void ethernet_frame_decoder(string message, int received_fd, int main_switch_fd,
     message_type += message[SA_IND + DA_SA_LEN + 1];
 
     string message_data = find_message_data(message);
-    switch_command_handler(received_fd , main_switch_fd , message , da , sa , message_type , message_data ,
+    router_command_handler(received_fd , main_router_fd , message , da , sa , message_type , message_data ,
                             port_to_write_fd , system_to_port , all_read_fd , all_write_fd , all_system_fd ,
                             read_fd_to_write_fd , root_id , root_fd , root_dst);
 }
 
 int main(int argc , char* argv[]) {
-    switch_id = atoi(argv[SWITCH_ID]);
-    cout << "New Switch has been created..." << endl;
+    router_id = atoi(argv[ROUTER_ID]);
+    cout << "New Router has been created..." << endl;
 
-    int root_id = switch_id , root_fd = -1 , root_dst = 0;
+    int root_id = router_id , root_fd = -1 , root_dst = 0;
     Port2Fd port_to_write_fd;
     Sys2Port system_to_port;
     FdVec all_read_fd;
@@ -370,14 +370,14 @@ int main(int argc , char* argv[]) {
     FdVec all_system_fd;
     map < int , int > read_fd_to_write_fd;
 
-    string switch_name_pipe = "fifo_ms" + to_string(switch_id);
-    int main_switch_fd = open(switch_name_pipe.c_str() , O_RDONLY | O_NONBLOCK);
+    string router_name_pipe = "fifo_ms" + to_string(router_id);
+    int main_router_fd = open(router_name_pipe.c_str() , O_RDONLY | O_NONBLOCK);
 
-    if(main_switch_fd < 0){
+    if(main_router_fd < 0){
         cout << "Error in opening name pipe..." << endl;
         exit(0);
     }
-    all_read_fd.push_back(main_switch_fd);
+    all_read_fd.push_back(main_router_fd);
 
     fd_set read_fds;
     while(true){
@@ -397,10 +397,10 @@ int main(int argc , char* argv[]) {
                 bzero(message , MESSAGE_SIZE);
                 int res = read(all_read_fd[i] , message , MESSAGE_SIZE);
                 if (res == 0) {
-                    cout << switch_info() << ": PANIC! Read EOF on descriptor!" << endl;
+                    cout << router_info() << ": PANIC! Read EOF on descriptor!" << endl;
                     abort();
                 }
-                ethernet_frame_decoder(string(message), all_read_fd[i] , main_switch_fd , port_to_write_fd , 
+                ethernet_frame_decoder(string(message), all_read_fd[i] , main_router_fd , port_to_write_fd , 
                                         system_to_port , all_read_fd , all_write_fd , all_system_fd , read_fd_to_write_fd , 
                                         root_id , root_fd , root_dst);
             }

@@ -95,7 +95,7 @@ void main_connect_command_handler(stringstream& ss , int& system_write_pipe_fd ,
 
     string res = "";
     res += system_info();
-    res += ": Connected to switch ";
+    res += ": Connected to router ";
     res += "(read_fd = " + to_string(system_read_pipe_fd);
     res += ", write_fd = " + to_string(system_write_pipe_fd);
     res += ")";

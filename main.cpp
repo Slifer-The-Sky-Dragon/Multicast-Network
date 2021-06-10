@@ -21,10 +21,10 @@
 #define MESSAGE_TYPE "01"
 #define CONFIG_TYPE "10"
 
-#define NEW_SWITCH "MySwitch"
+#define NEW_ROUTER "MyRouter"
 #define NEW_SYSTEM "MySystem"
-#define CONNECT_SWITCH_SYSTEM "ConnectSwitchSystem"
-#define CONNECT_SWITCH_SWITCH "ConnectSwitchSwitch"
+#define CONNECT_ROUTER_SYSTEM "ConnectRouterSystem"
+#define CONNECT_ROUTER_ROUTER "ConnectRouterRouter"
 #define SEND_MESSAGE "SendMessage"
 #define SEND_FILE "SendFile"
 #define RECV_FILE "RecieveFile"
@@ -32,7 +32,7 @@
 #define SET_PAR "SetParents"
 #define PRINT_INFO "PrintInfo"
 
-char SWITCH_EXEC[] = { "./switch" };
+char ROUTER_EXEC[] = { "./router" };
 char SYSTEM_EXEC[] = { "./system" };
 
 using namespace std;
@@ -43,26 +43,26 @@ typedef string ID;
 
 vector<int> children;
 
-void new_switch_command_handler(stringstream& ss , vector<ID>& switch_indexes , map < string , int >& fifo_to_fd){
-    string port_cnt , switch_id;
-    ss >> port_cnt >> switch_id;
+void new_router_command_handler(stringstream& ss , vector<ID>& router_indexes , map < string , int >& fifo_to_fd){
+    string port_cnt , router_id;
+    ss >> port_cnt >> router_id;
 
-    string fifo_name = FIFO_PREFIX + "ms" + switch_id;
+    string fifo_name = FIFO_PREFIX + "ms" + router_id;
     mkfifo(fifo_name.c_str(), 0666);
 
     int pid = fork();
 
     if (pid == 0){
-        char* args[] = { SWITCH_EXEC , (char*)port_cnt.c_str() ,
-                        (char*)switch_id.c_str() , NULL };
+        char* args[] = { ROUTER_EXEC , (char*)port_cnt.c_str() ,
+                        (char*)router_id.c_str() , NULL };
         
-        execvp(SWITCH_EXEC, args);
+        execvp(ROUTER_EXEC, args);
     }
 
     else{
         int new_fd = open(fifo_name.c_str() , O_WRONLY);
         fifo_to_fd[fifo_name] = new_fd;
-        switch_indexes.push_back(switch_id);
+        router_indexes.push_back(router_id);
         children.push_back(pid);
     }
 }
@@ -116,53 +116,53 @@ string convert_to_ehternet_frame(int da , int sa , int type , string data){
     return result;
 }
 
-void connect_switch_system_command_handler(stringstream& ss , map < string , int >& fifo_to_fd){
-    int system_id , switch_id , port_number;
-    ss >> system_id >> switch_id >> port_number;
+void connect_router_system_command_handler(stringstream& ss , map < string , int >& fifo_to_fd){
+    int system_id , router_id , port_number;
+    ss >> system_id >> router_id >> port_number;
 
-    string pipe_name1 = FIFO_PREFIX + "s" + to_string(switch_id) + "ss" + to_string(system_id);
-    string pipe_name2 = FIFO_PREFIX + "ss" + to_string(system_id) + "s" + to_string(switch_id);
+    string pipe_name1 = FIFO_PREFIX + "s" + to_string(router_id) + "ss" + to_string(system_id);
+    string pipe_name2 = FIFO_PREFIX + "ss" + to_string(system_id) + "s" + to_string(router_id);
     
     mkfifo(pipe_name1.c_str() , 0666);
     mkfifo(pipe_name2.c_str() , 0666);
 
-    string switch_data = "CSS " + to_string(port_number) + " " + pipe_name1 + " " + pipe_name2;
+    string router_data = "CSS " + to_string(port_number) + " " + pipe_name1 + " " + pipe_name2;
     string system_data = "C " + pipe_name2 + " " + pipe_name1;
 
-    string switch_message = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , switch_data);
+    string router_message = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , router_data);
     string system_message = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , system_data);
 
-    string switch_pipe_name = FIFO_PREFIX + "ms" + to_string(switch_id);
+    string router_pipe_name = FIFO_PREFIX + "ms" + to_string(router_id);
     string system_pipe_name = FIFO_PREFIX + "mss" + to_string(system_id);
     
-    if(fifo_to_fd.find(switch_pipe_name) != fifo_to_fd.end() && fifo_to_fd.find(system_pipe_name) != fifo_to_fd.end()){
-        write(fifo_to_fd[switch_pipe_name] , switch_message.c_str() , switch_message.size());
+    if(fifo_to_fd.find(router_pipe_name) != fifo_to_fd.end() && fifo_to_fd.find(system_pipe_name) != fifo_to_fd.end()){
+        write(fifo_to_fd[router_pipe_name] , router_message.c_str() , router_message.size());
         write(fifo_to_fd[system_pipe_name] , system_message.c_str() , system_message.size());
     }    
 }
 
-void connect_switch_switch_command_handler(stringstream& ss , map < string , int >& fifo_to_fd){
-    int switch_id1, switch_id2 , port_number1 , port_number2;
-    ss >> switch_id1 >> port_number1 >> switch_id2 >> port_number2;
+void connect_router_router_command_handler(stringstream& ss , map < string , int >& fifo_to_fd){
+    int router_id1, router_id2 , port_number1 , port_number2;
+    ss >> router_id1 >> port_number1 >> router_id2 >> port_number2;
 
-    string pipe_name1 = FIFO_PREFIX + "s" + to_string(switch_id1) + "s" + to_string(switch_id2);
-    string pipe_name2 = FIFO_PREFIX + "s" + to_string(switch_id2) + "s" + to_string(switch_id1);   
+    string pipe_name1 = FIFO_PREFIX + "s" + to_string(router_id1) + "s" + to_string(router_id2);
+    string pipe_name2 = FIFO_PREFIX + "s" + to_string(router_id2) + "s" + to_string(router_id1);   
     
     mkfifo(pipe_name1.c_str() , 0666);
     mkfifo(pipe_name2.c_str() , 0666);
 
-    string switch_data1 = "C " + to_string(port_number1) + " " + pipe_name1 + " " + pipe_name2;
-    string switch_data2 = "C " + to_string(port_number2) + " " + pipe_name2 + " " + pipe_name1;
+    string router_data1 = "C " + to_string(port_number1) + " " + pipe_name1 + " " + pipe_name2;
+    string router_data2 = "C " + to_string(port_number2) + " " + pipe_name2 + " " + pipe_name1;
 
-    string switch_message1 = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , switch_data1);
-    string switch_message2 = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , switch_data2);
+    string router_message1 = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , router_data1);
+    string router_message2 = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , router_data2);
 
-    string switch_pipe_name1 = FIFO_PREFIX + "ms" + to_string(switch_id1);
-    string switch_pipe_name2 = FIFO_PREFIX + "ms" + to_string(switch_id2);
+    string router_pipe_name1 = FIFO_PREFIX + "ms" + to_string(router_id1);
+    string router_pipe_name2 = FIFO_PREFIX + "ms" + to_string(router_id2);
     
-    if(fifo_to_fd.find(switch_pipe_name1) != fifo_to_fd.end() && fifo_to_fd.find(switch_pipe_name2) != fifo_to_fd.end()){
-        write(fifo_to_fd[switch_pipe_name1] , switch_message1.c_str() , switch_message1.size());
-        write(fifo_to_fd[switch_pipe_name2] , switch_message2.c_str() , switch_message2.size());
+    if(fifo_to_fd.find(router_pipe_name1) != fifo_to_fd.end() && fifo_to_fd.find(router_pipe_name2) != fifo_to_fd.end()){
+        write(fifo_to_fd[router_pipe_name1] , router_message1.c_str() , router_message1.size());
+        write(fifo_to_fd[router_pipe_name2] , router_message2.c_str() , router_message2.size());
     }    
 }
 
@@ -214,53 +214,53 @@ void recv_file_command_handler(stringstream& ss , map < string , int >& fifo_to_
     }    
 }
 
-void cfg_stp_command_handler(vector<ID> switch_indexes , map < string , int >& fifo_to_fd){
+void cfg_stp_command_handler(vector<ID> router_indexes , map < string , int >& fifo_to_fd){
     string data = "CONFIG";
-    string switch_message = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , data);
-    for(int i = 0 ; i < switch_indexes.size() ; i++){
-        string switch_id = switch_indexes[i];
-        string switch_pipe_name = FIFO_PREFIX + "ms" + switch_id;
-        write(fifo_to_fd[switch_pipe_name] , switch_message.c_str() , switch_message.size());
+    string router_message = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , data);
+    for(int i = 0 ; i < router_indexes.size() ; i++){
+        string router_id = router_indexes[i];
+        string router_pipe_name = FIFO_PREFIX + "ms" + router_id;
+        write(fifo_to_fd[router_pipe_name] , router_message.c_str() , router_message.size());
     }
 }
 
-void set_parents_command_handler(vector<ID> switch_indexes , map < string , int >& fifo_to_fd){
+void set_parents_command_handler(vector<ID> router_indexes , map < string , int >& fifo_to_fd){
     string data = "SETPAR";
-    string switch_message = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , data);
-    for(int i = 0 ; i < switch_indexes.size() ; i++){
-        string switch_id = switch_indexes[i];
-        string switch_pipe_name = FIFO_PREFIX + "ms" + switch_id;
-        write(fifo_to_fd[switch_pipe_name] , switch_message.c_str() , switch_message.size());
+    string router_message = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , data);
+    for(int i = 0 ; i < router_indexes.size() ; i++){
+        string router_id = router_indexes[i];
+        string router_pipe_name = FIFO_PREFIX + "ms" + router_id;
+        write(fifo_to_fd[router_pipe_name] , router_message.c_str() , router_message.size());
     }    
 }
 
-void print_info_command_handler(vector<ID> switch_indexes , map < string , int >& fifo_to_fd){
+void print_info_command_handler(vector<ID> router_indexes , map < string , int >& fifo_to_fd){
     string data = "PRINT";
-    string switch_message = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , data);
-    for(int i = 0 ; i < switch_indexes.size() ; i++){
-        string switch_id = switch_indexes[i];
-        string switch_pipe_name = FIFO_PREFIX + "ms" + switch_id;
-        write(fifo_to_fd[switch_pipe_name] , switch_message.c_str() , switch_message.size());
+    string router_message = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , data);
+    for(int i = 0 ; i < router_indexes.size() ; i++){
+        string router_id = router_indexes[i];
+        string router_pipe_name = FIFO_PREFIX + "ms" + router_id;
+        write(fifo_to_fd[router_pipe_name] , router_message.c_str() , router_message.size());
     }    
 }
 
 
 void command_handler(string command , 
-                     vector<ID>& switch_indexes ,
+                     vector<ID>& router_indexes ,
                      vector<ID>& system_indexes , 
                      map < string , int >& fifo_to_fd){
     stringstream ss(command);
     string command_type;
     ss >> command_type;
 
-    if(command_type == NEW_SWITCH)
-        new_switch_command_handler(ss, switch_indexes , fifo_to_fd);
+    if(command_type == NEW_ROUTER)
+        new_router_command_handler(ss, router_indexes , fifo_to_fd);
     else if(command_type == NEW_SYSTEM)
         new_system_command_handler(ss, system_indexes , fifo_to_fd);
-    else if(command_type == CONNECT_SWITCH_SYSTEM)
-        connect_switch_system_command_handler(ss , fifo_to_fd);
-    else if(command_type == CONNECT_SWITCH_SWITCH)
-        connect_switch_switch_command_handler(ss , fifo_to_fd);
+    else if(command_type == CONNECT_ROUTER_SYSTEM)
+        connect_router_system_command_handler(ss , fifo_to_fd);
+    else if(command_type == CONNECT_ROUTER_ROUTER)
+        connect_router_router_command_handler(ss , fifo_to_fd);
     else if(command_type == SEND_MESSAGE)
         send_message_command_handler(ss , fifo_to_fd);
     else if(command_type == SEND_FILE)
@@ -268,20 +268,20 @@ void command_handler(string command ,
     else if(command_type == RECV_FILE)
         recv_file_command_handler(ss , fifo_to_fd);
     else if(command_type == CFG_STP)
-        cfg_stp_command_handler(switch_indexes , fifo_to_fd);
+        cfg_stp_command_handler(router_indexes , fifo_to_fd);
     else if(command_type == SET_PAR)
-        set_parents_command_handler(switch_indexes , fifo_to_fd);
+        set_parents_command_handler(router_indexes , fifo_to_fd);
     else if(command_type == PRINT_INFO)
-        print_info_command_handler(switch_indexes , fifo_to_fd);
+        print_info_command_handler(router_indexes , fifo_to_fd);
 }
 
 int main(){
-    vector<ID> switch_indexes , system_indexes;
+    vector<ID> router_indexes , system_indexes;
     map < string , int > fifo_to_fd;
     string command;
     
     while(getline(cin , command)){
-        command_handler(command, switch_indexes, system_indexes , fifo_to_fd);
+        command_handler(command, router_indexes, system_indexes , fifo_to_fd);
     }
 
     for (auto c: children)
