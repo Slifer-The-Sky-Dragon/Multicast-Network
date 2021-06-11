@@ -35,6 +35,7 @@
 #define SYSTEM_JOIN_GROUP "SystemJoinGroup"
 #define SYSTEM_LEAVE_GROUP "SystemLeaveGroup"
 #define SYSTEM_SHOW_GROUP "SystemShowGroup"
+#define SEND_GROUP_MESSAGE "SendGroupMessage"
 
 char ROUTER_EXEC[] = { "./router" };
 char SYSTEM_EXEC[] = { "./system" };
@@ -111,7 +112,7 @@ string extend_string_length(string a , size_t final_length){
     return result;
 }
 
-string convert_to_ehternet_frame(int da , int sa , int type , string data){
+string convert_to_packet(int da , int sa , int type , string data){
     string result = EMPTY;
     string message_type = convert_to_message_type(type);
 
@@ -133,8 +134,8 @@ void connect_router_system_command_handler(stringstream& ss , map < string , int
     string router_data = "CSS " + to_string(port_number) + " " + pipe_name1 + " " + pipe_name2;
     string system_data = "C " + pipe_name2 + " " + pipe_name1;
 
-    string router_message = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , router_data);
-    string system_message = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , system_data);
+    string router_message = convert_to_packet(0 , 0 , MAIN_MESSAGE , router_data);
+    string system_message = convert_to_packet(0 , 0 , MAIN_MESSAGE , system_data);
 
     string router_pipe_name = FIFO_PREFIX + "ms" + to_string(router_id);
     string system_pipe_name = FIFO_PREFIX + "mss" + to_string(system_id);
@@ -158,8 +159,8 @@ void connect_router_router_command_handler(stringstream& ss , map < string , int
     string router_data1 = "C " + to_string(port_number1) + " " + pipe_name1 + " " + pipe_name2;
     string router_data2 = "C " + to_string(port_number2) + " " + pipe_name2 + " " + pipe_name1;
 
-    string router_message1 = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , router_data1);
-    string router_message2 = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , router_data2);
+    string router_message1 = convert_to_packet(0 , 0 , MAIN_MESSAGE , router_data1);
+    string router_message2 = convert_to_packet(0 , 0 , MAIN_MESSAGE , router_data2);
 
     string router_pipe_name1 = FIFO_PREFIX + "ms" + to_string(router_id1);
     string router_pipe_name2 = FIFO_PREFIX + "ms" + to_string(router_id2);
@@ -178,8 +179,24 @@ void send_message_command_handler(stringstream& ss , map < string , int >& fifo_
     getline(ss, raw_message);
 
     string system_data = "S " + to_string(system_id2) + " " + raw_message;
-    string system_message = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , system_data);
+    string system_message = convert_to_packet(0 , 0 , MAIN_MESSAGE , system_data);
     string system_pipe_name = FIFO_PREFIX + "mss" + to_string(system_id1);   
+
+    if(fifo_to_fd.find(system_pipe_name) != fifo_to_fd.end()){
+        write(fifo_to_fd[system_pipe_name] , system_message.c_str() , system_message.size());
+    }
+}
+
+void send_group_message_command_handler(stringstream& ss , map < string , int >& fifo_to_fd){
+    int system_id , group_id;
+    string raw_message;
+
+    ss >> system_id >> group_id;
+    getline(ss, raw_message);
+
+    string system_data = "MG " + to_string(group_id) + " " + raw_message;
+    string system_message = convert_to_packet(0 , 0 , MAIN_MESSAGE , system_data);
+    string system_pipe_name = FIFO_PREFIX + "mss" + to_string(system_id);
 
     if(fifo_to_fd.find(system_pipe_name) != fifo_to_fd.end()){
         write(fifo_to_fd[system_pipe_name] , system_message.c_str() , system_message.size());
@@ -193,7 +210,7 @@ void send_file_command_handler(stringstream& ss, map < string , int >& fifo_to_f
     ss >> system_id1 >> system_id2 >> file_name;
 
     string system1_data = "F " + to_string(system_id2) + " " + file_name;
-    string system1_message = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , system1_data);
+    string system1_message = convert_to_packet(0 , 0 , MAIN_MESSAGE , system1_data);
 
     string system1_pipe_name = FIFO_PREFIX + "mss" + to_string(system_id1);   
 
@@ -209,7 +226,7 @@ void recv_file_command_handler(stringstream& ss , map < string , int >& fifo_to_
     ss >> system_id1 >> system_id2 >> file_name;
 
     string system1_data = "R " + to_string(system_id2) + " " + file_name;
-    string system1_message = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , system1_data);
+    string system1_message = convert_to_packet(0 , 0 , MAIN_MESSAGE , system1_data);
 
     string system1_pipe_name = FIFO_PREFIX + "mss" + to_string(system_id1);   
 
@@ -220,7 +237,7 @@ void recv_file_command_handler(stringstream& ss , map < string , int >& fifo_to_
 
 void cfg_stp_command_handler(vector<ID> router_indexes , map < string , int >& fifo_to_fd){
     string data = "CONFIG";
-    string router_message = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , data);
+    string router_message = convert_to_packet(0 , 0 , MAIN_MESSAGE , data);
     for(int i = 0 ; i < router_indexes.size() ; i++){
         string router_id = router_indexes[i];
         string router_pipe_name = FIFO_PREFIX + "ms" + router_id;
@@ -230,7 +247,7 @@ void cfg_stp_command_handler(vector<ID> router_indexes , map < string , int >& f
 
 void set_parents_command_handler(vector<ID> router_indexes , map < string , int >& fifo_to_fd){
     string data = "SETPAR";
-    string router_message = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , data);
+    string router_message = convert_to_packet(0 , 0 , MAIN_MESSAGE , data);
     for(int i = 0 ; i < router_indexes.size() ; i++){
         string router_id = router_indexes[i];
         string router_pipe_name = FIFO_PREFIX + "ms" + router_id;
@@ -240,7 +257,7 @@ void set_parents_command_handler(vector<ID> router_indexes , map < string , int 
 
 void print_info_command_handler(vector<ID> router_indexes , map < string , int >& fifo_to_fd){
     string data = "PRINT";
-    string router_message = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , data);
+    string router_message = convert_to_packet(0 , 0 , MAIN_MESSAGE , data);
     for(int i = 0 ; i < router_indexes.size() ; i++){
         string router_id = router_indexes[i];
         string router_pipe_name = FIFO_PREFIX + "ms" + router_id;
@@ -257,7 +274,7 @@ void system_join_group_command_handler(stringstream& ss , vector<ID>& router_ind
 
 
     string system_data = "J " + to_string(group_id);
-    string system_message = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , system_data);
+    string system_message = convert_to_packet(0 , 0 , MAIN_MESSAGE , system_data);
 
     string system_pipe_name = FIFO_PREFIX + "mss" + to_string(system_id);   
 
@@ -274,7 +291,7 @@ void system_leave_group_command_handler(stringstream& ss , vector<ID>& router_in
     ss >> system_id >> group_id;
 
     string system_data = "L " + to_string(group_id);
-    string system_message = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , system_data);
+    string system_message = convert_to_packet(0 , 0 , MAIN_MESSAGE , system_data);
 
     string system_pipe_name = FIFO_PREFIX + "mss" + to_string(system_id);   
 
@@ -290,7 +307,7 @@ void system_show_group_command_handler(stringstream& ss , vector <ID>& router_in
     ss >> system_id;
 
     string system_data = "SG";
-    string system_message = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , system_data);
+    string system_message = convert_to_packet(0 , 0 , MAIN_MESSAGE , system_data);
 
     string system_pipe_name = FIFO_PREFIX + "mss" + to_string(system_id);   
 
@@ -298,7 +315,6 @@ void system_show_group_command_handler(stringstream& ss , vector <ID>& router_in
         write(fifo_to_fd[system_pipe_name] , system_message.c_str() , system_message.size());
     }    
 }
-
 
 void command_handler(string command , 
                      vector<ID>& router_indexes ,
@@ -318,6 +334,8 @@ void command_handler(string command ,
         connect_router_router_command_handler(ss , fifo_to_fd);
     else if(command_type == SEND_MESSAGE)
         send_message_command_handler(ss , fifo_to_fd);
+    else if(command_type == SEND_GROUP_MESSAGE)
+        send_group_message_command_handler(ss , fifo_to_fd);
     else if(command_type == SEND_FILE)
         send_file_command_handler(ss, fifo_to_fd);
     else if(command_type == RECV_FILE)

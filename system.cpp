@@ -25,7 +25,7 @@ typedef enum {EXEC_NAME , SYSTEM_ID} Argv_Indexes;
 #define MAIN_TYPE "00"
 #define MESSAGE_TYPE "01"
 #define CONFIG_TYPE "11"
-
+#define GROUP_MESSAGE_TYPE "MG"
 #define FILE_START_TYPE "FS"
 #define FILE_LINE_TYPE "FL"
 #define FILE_END_TYPE "FE"
@@ -88,7 +88,7 @@ string extend_string_length(string a , size_t final_length){
     return result;
 }
 
-string convert_to_ehternet_frame(int da , int sa , string message_type , string data){
+string convert_to_packet(int da , int sa , string message_type , string data){
     string result = EMPTY;
 
     result = SFD + extend_string_length(to_string(da) , 6) + extend_string_length(to_string(sa) , 6) +
@@ -130,7 +130,7 @@ void main_send_command_handler(stringstream& ss , int system_write_pipe_fd){
         check = true;
     }
     
-    string frame = convert_to_ehternet_frame(da , system_id , MESSAGE_TYPE , message_body);
+    string frame = convert_to_packet(da , system_id , MESSAGE_TYPE , message_body);
     write(system_write_pipe_fd , frame.c_str() , frame.size());
     
     string res = "";
@@ -138,6 +138,33 @@ void main_send_command_handler(stringstream& ss , int system_write_pipe_fd){
     res += ": Sent message ";
     res += "(write_fd = " + to_string(system_write_pipe_fd);
     res += ", dest = " + to_string(da);
+    res += ", message = \"" + message_body + "\")";
+
+    cout << res << endl;
+}
+
+void main_group_message_command_handler(stringstream& ss , int system_write_pipe_fd){
+    int group_id;
+    string message_body = EMPTY;
+    ss >> group_id;
+
+    string line;
+    bool check = false;
+    while(ss >> line){
+        if(check == true)
+            message_body += " ";
+        message_body += line;
+        check = true;
+    }
+    
+    string frame = convert_to_packet(group_id , system_id , GROUP_MESSAGE_TYPE , message_body);
+    write(system_write_pipe_fd , frame.c_str() , frame.size());
+    
+    string res = "";
+    res += system_info();
+    res += ": Sent group message ";
+    res += "(write_fd = " + to_string(system_write_pipe_fd);
+    res += ", dest = " + to_string(group_id);
     res += ", message = \"" + message_body + "\")";
 
     cout << res << endl;
@@ -155,7 +182,7 @@ void main_file_command_handler(stringstream& ss , int system_write_pipe_fd){
         lines.push_back(file_line);
 
     string file_start_data = file_name;
-    string file_start_frame = convert_to_ehternet_frame(da , system_id ,
+    string file_start_frame = convert_to_packet(da , system_id ,
                                 FILE_START_TYPE , file_start_data);
 
     write(system_write_pipe_fd, file_start_frame.c_str(), file_start_frame.size());
@@ -163,7 +190,7 @@ void main_file_command_handler(stringstream& ss , int system_write_pipe_fd){
     usleep(DELAY);
     for(size_t i = 0; i < lines.size(); i++){
         string file_line_data = file_name + " " + lines[i];
-        string file_line_frame = convert_to_ehternet_frame(da , system_id ,
+        string file_line_frame = convert_to_packet(da , system_id ,
                                 FILE_LINE_TYPE , file_line_data);
 
         write(system_write_pipe_fd, file_line_frame.c_str(), file_line_frame.size());
@@ -172,7 +199,7 @@ void main_file_command_handler(stringstream& ss , int system_write_pipe_fd){
     }
 
     string file_end_data = file_name;
-    string file_end_frame = convert_to_ehternet_frame(da , system_id ,
+    string file_end_frame = convert_to_packet(da , system_id ,
                                 FILE_END_TYPE , file_end_data);
     
     write(system_write_pipe_fd, file_end_frame.c_str(), file_end_frame.size());        
@@ -188,7 +215,7 @@ void main_receive_command_handler(stringstream& ss , int system_write_pipe_fd){
     ss >> da >> file_name;
     
     string message_body = file_name;
-    string frame = convert_to_ehternet_frame(da , system_id , RECEIVE_TYPE , message_body);
+    string frame = convert_to_packet(da , system_id , RECEIVE_TYPE , message_body);
     write(system_write_pipe_fd , frame.c_str() , frame.size());
     
     string res = "";
@@ -232,7 +259,6 @@ void main_show_group_command_handler(){
     cout << res << endl;    
 }
 
-
 void main_command_handler(string message_data , int& system_write_pipe_fd , int& system_read_pipe_fd){
     stringstream ss(message_data);
     string command;
@@ -252,6 +278,8 @@ void main_command_handler(string message_data , int& system_write_pipe_fd , int&
         main_leave_group_command_handler(ss);
     else if(command == "SG")
         main_show_group_command_handler();
+    else if(command == "MG")
+        main_group_message_command_handler(ss , system_write_pipe_fd);
 }
 
 string clear_new_line(string in){
@@ -333,7 +361,7 @@ void receive_file_command_handler(int da , int sa , string file_name , int syste
         lines.push_back(file_line);
 
     string file_start_data = file_name;
-    string file_start_frame = convert_to_ehternet_frame(da , system_id ,
+    string file_start_frame = convert_to_packet(da , system_id ,
                                 FILE_START_TYPE , file_start_data);
 
     write(system_write_pipe_fd, file_start_frame.c_str(), file_start_frame.size());
@@ -341,14 +369,14 @@ void receive_file_command_handler(int da , int sa , string file_name , int syste
     usleep(DELAY);
     for(size_t i = 0; i < lines.size(); i++){
         string file_line_data = file_name + " " + lines[i];
-        string file_line_frame = convert_to_ehternet_frame(da , system_id ,
+        string file_line_frame = convert_to_packet(da , system_id ,
                                 FILE_LINE_TYPE , file_line_data);
         write(system_write_pipe_fd, file_line_frame.c_str(), file_line_frame.size());
         usleep(DELAY);
     }
 
     string file_end_data = file_name;
-    string file_end_frame = convert_to_ehternet_frame(da , system_id ,
+    string file_end_frame = convert_to_packet(da , system_id ,
                                 FILE_END_TYPE , file_end_data);
     
     write(system_write_pipe_fd, file_end_frame.c_str(), file_end_frame.size());        
@@ -378,7 +406,7 @@ void system_command_handler(int da , int sa , string message_type ,
         receive_file_command_handler(da , sa , message_data , system_write_pipe_fd);
 }
 
-void ethernet_frame_decoder(string message , int& system_write_pipe_fd , int& system_read_pipe_fd){
+void packet_decoder(string message , int& system_write_pipe_fd , int& system_read_pipe_fd){
     int da = find_int_value(message , DA_IND , DA_SA_LEN);
     int sa = find_int_value(message , SA_IND , DA_SA_LEN);
 
@@ -424,7 +452,7 @@ int main(int argc , char* argv[]) {
                 cout << system_info() << ": PANIC! Read EOF on descriptor!" << endl;
                 abort();
             }
-            ethernet_frame_decoder(string(message), system_write_pipe_fd , system_read_pipe_fd);
+            packet_decoder(string(message), system_write_pipe_fd , system_read_pipe_fd);
         }
         if(FD_ISSET(system_read_pipe_fd , &read_fds)){
             char message[MESSAGE_SIZE];
@@ -434,7 +462,7 @@ int main(int argc , char* argv[]) {
                 cout << system_info() << ": PANIC! Read EOF on descriptor!" << endl;
                 abort();
             }
-            ethernet_frame_decoder(string(message), system_write_pipe_fd , system_read_pipe_fd);
+            packet_decoder(string(message), system_write_pipe_fd , system_read_pipe_fd);
         }
     }
 }

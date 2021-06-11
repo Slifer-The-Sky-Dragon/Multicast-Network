@@ -21,6 +21,9 @@ using namespace std;
 #define CHILD_TYPE "10"
 #define CONFIG_TYPE "11"
 
+#define GROUP_MESSAGE_TYPE "MG"
+#define JOIN_QUERY_TYPE "JQ"
+
 #define FILE_START_TYPE "FS"
 #define FILE_LINE_TYPE "FL"
 #define FILE_END_TYPE "FE"
@@ -51,7 +54,7 @@ struct system {
     int id, read_fd, write_fd;
 };
 
-void ethernet_frame_decoder(string message, int received_fd, int main_router_fd, Port2Fd& port_to_write_fd ,
+void packet_decoder(string message, int received_fd, int main_router_fd, Port2Fd& port_to_write_fd ,
                             Sys2Port& system_to_port , FdVec& all_read_fd , FdVec& all_write_fd , FdVec& all_system_fd,
                             map < int , int >& read_fd_to_write_fd,
                             int& root_id , int& root_fd , int& root_dst);
@@ -94,7 +97,7 @@ string clear_new_line(string in){
     return res;
 }
 
-string convert_to_ehternet_frame(int da , int sa , string message_type , string data){
+string convert_to_packet(int da , int sa , string message_type , string data){
     string result = EMPTY;
 
     result = SFD + extend_string_length(to_string(da) , 6) + extend_string_length(to_string(sa) , 6) +
@@ -114,7 +117,7 @@ void broadcast_root_message(string root_message , FdVec& all_read_fd ,
 
 void main_config_message_handler(FdVec& all_read_fd , FdVec& all_write_fd , map < int , int >& read_fd_to_write_fd){
     string root_data = to_string(router_id) + " " + to_string(router_id) + " 0 ";
-    string root_message = convert_to_ehternet_frame(0 , 0 , CONFIG_TYPE , root_data);
+    string root_message = convert_to_packet(0 , 0 , CONFIG_TYPE , root_data);
     broadcast_root_message(root_message , all_read_fd , all_write_fd , read_fd_to_write_fd);
 }
 
@@ -127,7 +130,7 @@ void main_setpar_message_handler(FdVec& all_read_fd , FdVec& all_write_fd , FdVe
     if(root_fd != -1){
         all_write_fd.push_back(read_fd_to_write_fd[root_fd]);
         string root_data = to_string(router_id) + " ";
-        string root_message = convert_to_ehternet_frame(0 , 0 , CHILD_TYPE , root_data);
+        string root_message = convert_to_packet(0 , 0 , CHILD_TYPE , root_data);
         write(read_fd_to_write_fd[root_fd] , root_message.c_str() , root_message.size());
         usleep(DELAY);
     }
@@ -243,6 +246,27 @@ void message_command_handler(string raw_message , int received_fd, int main_rout
     }
 }
 
+void group_message_command_handler(string raw_message , int received_fd, int main_router_fd, int da, int sa , string message_data , 
+                            Port2Fd& port_to_write_fd , Sys2Port& system_to_write_port , FdVec& all_read_fd,
+                            FdVec& all_write_fd , map < int , int >& read_fd_to_write_fd,
+                            int& root_id , int& root_fd , int& root_dst){
+    // system_to_write_port[sa] = read_fd_to_write_fd[received_fd];
+    for(size_t i = 0 ; i < all_write_fd.size() ; i++){
+        if(all_write_fd[i] == read_fd_to_write_fd[received_fd])
+            continue;
+        string message_data = "";
+        write(all_write_fd[i] , raw_message.c_str() , raw_message.size());
+        string res = EMPTY;
+        // res += router_info();
+        // res += ": Broadcasted packet ";
+        // res += "(source = " + to_string(sa);
+        // res += ", dest = " + to_string(da);
+        // res += ", fd = " + to_string(all_write_fd[i]);
+        // res += ")";
+        // cout << res << '\n';
+    }
+}
+
 bool is_better_root(int root_id , int root_dst , int recv_root_id , int recv_dst){
     if(recv_root_id > root_id)
         return false;
@@ -261,7 +285,7 @@ void check_for_other_messages(stringstream& ss , int received_fd , int main_rout
         string a , b;
         ss >> a >> b;
         string message = command_part + " " + a + " " + b + "\n";
-        ethernet_frame_decoder(message, received_fd , main_router_fd , port_to_write_fd , 
+        packet_decoder(message, received_fd , main_router_fd , port_to_write_fd , 
                                                 system_to_write_port , all_read_fd , all_write_fd , all_system_fd, 
                                                 read_fd_to_write_fd , root_id , root_fd , root_dst);
     }
@@ -290,7 +314,7 @@ void config_command_handler(string raw_message , int received_fd, int main_route
         root_fd = received_fd;
 
         string root_data = to_string(router_id) + " " + to_string(root_id) + " " + to_string(recv_dst + 1) + " ";
-        string root_message = convert_to_ehternet_frame(0 , 0 , CONFIG_TYPE , root_data);
+        string root_message = convert_to_packet(0 , 0 , CONFIG_TYPE , root_data);
         broadcast_root_message(root_message , all_read_fd , all_write_fd , read_fd_to_write_fd);
     }
 
@@ -336,12 +360,16 @@ void router_command_handler(int received_fd, int main_router_fd, string raw_mess
         child_command_handler(raw_message , received_fd , main_router_fd , da , sa , message_data , port_to_write_fd ,
                                  system_to_port , all_read_fd , all_write_fd , read_fd_to_write_fd,
                                  root_id , root_fd , root_dst);
+    else if(message_type == GROUP_MESSAGE_TYPE)
+        group_message_command_handler(raw_message , received_fd , main_router_fd , da , sa , message_data , port_to_write_fd ,
+                                 system_to_port , all_read_fd , all_write_fd , read_fd_to_write_fd,
+                                 root_id , root_fd , root_dst);
     else
         message_command_handler(raw_message , received_fd , main_router_fd , da , sa , message_data , port_to_write_fd ,
                                  system_to_port , all_read_fd , all_write_fd , read_fd_to_write_fd);
 }
 
-void ethernet_frame_decoder(string message, int received_fd, int main_router_fd, Port2Fd& port_to_write_fd ,
+void packet_decoder(string message, int received_fd, int main_router_fd, Port2Fd& port_to_write_fd ,
                             Sys2Port& system_to_port , FdVec& all_read_fd , FdVec& all_write_fd , FdVec& all_system_fd,
                             map < int , int >& read_fd_to_write_fd,
                             int& root_id , int& root_fd , int& root_dst){
@@ -400,7 +428,7 @@ int main(int argc , char* argv[]) {
                     cout << router_info() << ": PANIC! Read EOF on descriptor!" << endl;
                     abort();
                 }
-                ethernet_frame_decoder(string(message), all_read_fd[i] , main_router_fd , port_to_write_fd , 
+                packet_decoder(string(message), all_read_fd[i] , main_router_fd , port_to_write_fd , 
                                         system_to_port , all_read_fd , all_write_fd , all_system_fd , read_fd_to_write_fd , 
                                         root_id , root_fd , root_dst);
             }
