@@ -1,14 +1,24 @@
 MySystem 1
 MySystem 2
 MySystem 3
+MySystem 4
+MySystem 5
+MySystem 6
 MyRouter 10 1
 MyRouter 10 2
 MyRouter 10 3
+MyRouter 10 4
 ConnectRouterSystem 1 1 1
-ConnectRouterSystem 2 2 2
-ConnectRouterSystem 3 3 3
-ConnectRouterRouter 1 2 2 1
-ConnectRouterRouter 1 3 3 1
+ConnectRouterSystem 2 1 2
+ConnectRouterSystem 3 2 1
+ConnectRouterSystem 4 2 2
+ConnectRouterSystem 5 3 1
+ConnectRouterSystem 6 3 2
+ConnectRouterRouter 4 1 1 3
+ConnectRouterRouter 4 2 2 3
+ConnectRouterRouter 4 3 3 3
+
+//Write some join and leave
 SystemJoinGroup 1 1
 SystemJoinGroup 3 1
 SystemJoinGroup 2 1
