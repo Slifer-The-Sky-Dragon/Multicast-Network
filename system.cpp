@@ -44,7 +44,7 @@ const int MESSAGE_SIZE = 1500;
 const string FILE_PREFIX = "file_";
 
 int system_id;
-vector<int> system_group_id;
+vector<int> system_group_id = {};
 
 string vec2str(vector<int>& vec) {
     string res = "[";
@@ -226,6 +226,13 @@ void main_leave_group_command_handler(stringstream& ss){
     cout << res << endl;
 }
 
+void main_show_group_command_handler(){
+    string res = "";
+    res += system_info();
+    cout << res << endl;    
+}
+
+
 void main_command_handler(string message_data , int& system_write_pipe_fd , int& system_read_pipe_fd){
     stringstream ss(message_data);
     string command;
@@ -243,6 +250,8 @@ void main_command_handler(string message_data , int& system_write_pipe_fd , int&
         main_join_group_command_handler(ss);
     else if(command == "L")
         main_leave_group_command_handler(ss);
+    else if(command == "SG")
+        main_show_group_command_handler();
 }
 
 string clear_new_line(string in){
