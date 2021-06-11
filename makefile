@@ -1,5 +1,5 @@
 CC = g++
-CC_ARGS = -std=c++11 -Wall --pedantic
+CC_ARGS = -std=c++11
 
 all: main system router
 

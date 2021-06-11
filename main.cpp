@@ -32,6 +32,9 @@
 #define SET_PAR "SetParents"
 #define PRINT_INFO "PrintInfo"
 
+#define SYSTEM_JOIN_GROUP "SystemJoinGroup"
+#define SYSTEM_LEAVE_GROUP "SystemLeaveGroup"
+
 char ROUTER_EXEC[] = { "./router" };
 char SYSTEM_EXEC[] = { "./system" };
 
@@ -244,6 +247,39 @@ void print_info_command_handler(vector<ID> router_indexes , map < string , int >
     }    
 }
 
+void system_join_group_command_handler(stringstream& ss , vector<ID>& router_indexes,
+                                vector<ID>& system_indexes , 
+                                map < string , int >& fifo_to_fd){
+    
+    int system_id, group_id;
+    ss >> system_id >> group_id;
+
+    string system_data = "J " + to_string(group_id);
+    string system_message = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , system_data);
+
+    string system_pipe_name = FIFO_PREFIX + "mss" + to_string(system_id);   
+
+    if(fifo_to_fd.find(system_pipe_name) != fifo_to_fd.end()){
+        write(fifo_to_fd[system_pipe_name] , system_message.c_str() , system_message.size());
+    }
+}
+
+void system_leave_group_command_handler(stringstream& ss , vector<ID>& router_indexes,
+                                vector<ID>& system_indexes , 
+                                map < string , int >& fifo_to_fd){
+    
+    int system_id, group_id;
+    ss >> system_id >> group_id;
+
+    string system_data = "L " + to_string(group_id);
+    string system_message = convert_to_ehternet_frame(0 , 0 , MAIN_MESSAGE , system_data);
+
+    string system_pipe_name = FIFO_PREFIX + "mss" + to_string(system_id);   
+
+    if(fifo_to_fd.find(system_pipe_name) != fifo_to_fd.end()){
+        write(fifo_to_fd[system_pipe_name] , system_message.c_str() , system_message.size());
+    }
+}
 
 void command_handler(string command , 
                      vector<ID>& router_indexes ,
@@ -273,6 +309,11 @@ void command_handler(string command ,
         set_parents_command_handler(router_indexes , fifo_to_fd);
     else if(command_type == PRINT_INFO)
         print_info_command_handler(router_indexes , fifo_to_fd);
+    else if(command_type == SYSTEM_JOIN_GROUP)
+        system_join_group_command_handler(ss , router_indexes, system_indexes , fifo_to_fd);
+    else if(command_type == SYSTEM_LEAVE_GROUP)
+        system_leave_group_command_handler(ss , router_indexes , system_indexes , fifo_to_fd);
+
 }
 
 int main(){

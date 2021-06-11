@@ -44,9 +44,23 @@ const int MESSAGE_SIZE = 1500;
 const string FILE_PREFIX = "file_";
 
 int system_id;
+vector<int> system_group_id;
+
+string vec2str(vector<int>& vec) {
+    string res = "[";
+    bool flag = false;
+    for (auto v: vec) {
+        if (flag)
+            res += ", ";
+        res += to_string(v);
+        flag = true;
+    }
+    res += "]";
+    return res; 
+}
 
 string system_info() {
-    return "SYSTEM(ID = " + to_string(system_id) + ")";
+    return "SYSTEM(ID = " + to_string(system_id) + ", GROUP_ID = " + vec2str(system_group_id) + ")";
 }
 
 int find_int_value(string a , int st , int length){
@@ -187,6 +201,31 @@ void main_receive_command_handler(stringstream& ss , int system_write_pipe_fd){
     cout << res << endl;
 }
 
+void main_join_group_command_handler(stringstream& ss){
+    int group_id;
+    ss >> group_id;
+    system_group_id.push_back(group_id);
+
+    string res = "";
+    res += system_info();
+    res += ": joined group " + to_string(group_id) + "!";
+    cout << res << endl;
+}
+
+void main_leave_group_command_handler(stringstream& ss){
+    int group_id;
+    ss >> group_id;
+
+    for (auto v = system_group_id.begin(); v != system_group_id.end(); ++v)
+        if (*v == group_id)
+            system_group_id.erase(v);
+
+    string res = "";
+    res += system_info();
+    res += ": left group " + to_string(group_id) + "!";
+    cout << res << endl;
+}
+
 void main_command_handler(string message_data , int& system_write_pipe_fd , int& system_read_pipe_fd){
     stringstream ss(message_data);
     string command;
@@ -200,6 +239,10 @@ void main_command_handler(string message_data , int& system_write_pipe_fd , int&
         main_file_command_handler(ss , system_write_pipe_fd);
     else if(command == "R")
         main_receive_command_handler(ss , system_write_pipe_fd);
+    else if(command == "J")
+        main_join_group_command_handler(ss);
+    else if(command == "L")
+        main_leave_group_command_handler(ss);
 }
 
 string clear_new_line(string in){
