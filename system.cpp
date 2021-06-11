@@ -26,10 +26,17 @@ typedef enum {EXEC_NAME , SYSTEM_ID} Argv_Indexes;
 #define MESSAGE_TYPE "01"
 #define CONFIG_TYPE "11"
 #define GROUP_MESSAGE_TYPE "MG"
+
 #define FILE_START_TYPE "FS"
 #define FILE_LINE_TYPE "FL"
 #define FILE_END_TYPE "FE"
+#define SHARE_FILE_START "fs"
+#define SHARE_FILE_LINE_TYPE "fl"
+#define SHARE_FILE_END_TYPE "fe"
+
 #define RECEIVE_TYPE "RE"
+#define JOIN_QUERY_TYPE "JQ"
+#define LEAVE_QUERY_TYPE "LQ"
 
 #define NOT_DEFINED -1
 #define DA_IND 1
@@ -208,6 +215,44 @@ void main_file_command_handler(stringstream& ss , int system_write_pipe_fd){
     file.close();
 }
 
+void main_shared_file_command_handler(stringstream& ss , int system_write_pipe_fd){
+    int group_id;
+    string file_name;
+    ss >> group_id >> file_name;
+
+    ifstream file(file_name);
+    string file_line;
+    vector<string> lines;
+    while(getline(file, file_line))
+        lines.push_back(file_line);
+
+    string file_start_data = file_name;
+    string file_start_frame = convert_to_packet(group_id , system_id ,
+                                SHARE_FILE_START , file_start_data);
+
+    write(system_write_pipe_fd, file_start_frame.c_str(), file_start_frame.size());
+
+    usleep(DELAY);
+    for(size_t i = 0; i < lines.size(); i++){
+        string file_line_data = file_name + " " + lines[i];
+        string file_line_frame = convert_to_packet(group_id , system_id ,
+                                SHARE_FILE_LINE_TYPE , file_line_data);
+
+        write(system_write_pipe_fd, file_line_frame.c_str(), file_line_frame.size());
+
+        usleep(DELAY);
+    }
+
+    string file_end_data = file_name;
+    string file_end_frame = convert_to_packet(group_id , system_id ,
+                                SHARE_FILE_END_TYPE , file_end_data);
+    
+    write(system_write_pipe_fd, file_end_frame.c_str(), file_end_frame.size());        
+
+    usleep(DELAY);
+    file.close();
+}
+
 void main_receive_command_handler(stringstream& ss , int system_write_pipe_fd){
     int da;
     string file_name;
@@ -228,28 +273,37 @@ void main_receive_command_handler(stringstream& ss , int system_write_pipe_fd){
     cout << res << endl;
 }
 
-void main_join_group_command_handler(stringstream& ss){
+void main_join_group_command_handler(stringstream& ss , int system_write_pipe_fd){
     int group_id;
     ss >> group_id;
     system_group_id.push_back(group_id);
+    
+    string packet = convert_to_packet(group_id , system_id , JOIN_QUERY_TYPE , "");
+    write(system_write_pipe_fd , packet.c_str() , packet.size());
 
     string res = "";
     res += system_info();
-    res += ": joined group " + to_string(group_id) + "!";
+    res += ": Joined group " + to_string(group_id) + "!";
     cout << res << endl;
 }
 
-void main_leave_group_command_handler(stringstream& ss){
+void main_leave_group_command_handler(stringstream& ss , int system_write_pipe_fd){
     int group_id;
     ss >> group_id;
 
-    for (auto v = system_group_id.begin(); v != system_group_id.end(); ++v)
-        if (*v == group_id)
+    for (auto v = system_group_id.begin() ; v != system_group_id.end() ; ++v) {
+        if (*v == group_id) {
             system_group_id.erase(v);
+            break;
+        }
+    }
+
+    string packet = convert_to_packet(group_id , system_id , LEAVE_QUERY_TYPE , "");
+    write(system_write_pipe_fd , packet.c_str() , packet.size());
 
     string res = "";
     res += system_info();
-    res += ": left group " + to_string(group_id) + "!";
+    res += ": Left group " + to_string(group_id) + "!";
     cout << res << endl;
 }
 
@@ -273,13 +327,16 @@ void main_command_handler(string message_data , int& system_write_pipe_fd , int&
     else if(command == "R")
         main_receive_command_handler(ss , system_write_pipe_fd);
     else if(command == "J")
-        main_join_group_command_handler(ss);
+        main_join_group_command_handler(ss , system_write_pipe_fd);
     else if(command == "L")
-        main_leave_group_command_handler(ss);
+        main_leave_group_command_handler(ss , system_write_pipe_fd);
     else if(command == "SG")
         main_show_group_command_handler();
     else if(command == "MG")
         main_group_message_command_handler(ss , system_write_pipe_fd);
+    else if(command == "FG")
+        main_shared_file_command_handler(ss , system_write_pipe_fd);
+
 }
 
 string clear_new_line(string in){
@@ -301,6 +358,19 @@ void message_command_handler(int da , int sa , string message_data){
 
     cout << res << endl;
 }
+
+void group_message_command_handler(int da , int sa , string message_data){
+    int group_id = da;
+    string res = "";
+    res += system_info();
+    res += ": Received group message ";
+    res += "(source = " + to_string(sa);
+    res += ", dest_group = " + to_string(group_id);
+    res += ", message = \"" + clear_new_line(message_data) + "\")";
+
+    cout << res << endl;
+}
+
 
 void file_start_command_handler(int da , int sa , string message_data){
     string file_name = FILE_PREFIX + "ss" + to_string(system_id) + "_" + clear_new_line(message_data);
@@ -337,6 +407,21 @@ void file_end_command_handler(int da , int sa , string message_data){
     res += "(source = " + to_string(sa);
     res += ", dest = " + to_string(da);
     res += ", Downloaded file name = \"" + file_name + "\")";
+
+    cout << res << endl;
+}
+
+void shared_file_end_command_handler(int da , int sa , string message_data){
+    int group_id = da;
+    
+    string file_name = clear_new_line(message_data);
+
+    string res = "";
+    res += system_info();
+    res += ": Received shared file ";
+    res += "(source = " + to_string(sa);
+    res += ", dest_group = " + to_string(group_id);
+    res += ", downloaded file name = \"" + file_name + "\")";
 
     cout << res << endl;
 }
@@ -390,18 +475,22 @@ void system_command_handler(int da , int sa , string message_type ,
 
     if(message_type == MAIN_TYPE)
         main_command_handler(message_data , system_write_pipe_fd , system_read_pipe_fd);
-
     else if(da == system_id && message_type == MESSAGE_TYPE)
         message_command_handler(da , sa , message_data);
-
+    else if(message_type == GROUP_MESSAGE_TYPE)
+        group_message_command_handler(da , sa , message_data);
     else if(da == system_id && message_type == FILE_START_TYPE)
         file_start_command_handler(da , sa , message_data);
-    
+    else if (message_type == SHARE_FILE_START)
+        file_start_command_handler(da , sa , message_data);
     else if(da == system_id && message_type == FILE_LINE_TYPE)
         file_line_command_handler(da , sa , message_data);
-
+    else if(message_type == SHARE_FILE_LINE_TYPE)
+        file_line_command_handler(da , sa , message_data);
     else if(da == system_id && message_type == FILE_END_TYPE)
         file_end_command_handler(da , sa , message_data);
+    else if(message_type == SHARE_FILE_END_TYPE)
+        shared_file_end_command_handler(da , sa , message_data);
     else if(da == system_id && message_type == RECEIVE_TYPE)
         receive_file_command_handler(da , sa , message_data , system_write_pipe_fd);
 }
