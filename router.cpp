@@ -414,8 +414,6 @@ void leave_query_command_handler(string raw_message , int received_fd, int main_
     if (index != -1)
         group_id_to_write_fd[group_id].erase(group_id_to_write_fd[group_id].begin() + index);
 
-    cout << "Did something in a router\n";
-
     if(group_id_to_write_fd[group_id].size() == 1){
         for(size_t i = 0 ; i < all_write_fd.size() ; i++){
             if(all_write_fd[i] == read_fd_to_write_fd[received_fd])
